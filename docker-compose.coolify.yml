@@ -215,15 +215,15 @@ services:
       retries: 3
     # Traefik labels for published sites wildcard routing.
     # NOTE: Coolify does NOT interpolate ${VAR} in labels — update the domain values below
-    # before deploying. Replace "pub.example.com" with your PUBLISHER_HOST value.
+    # before deploying. Replace "wstdwork.example.com" with your PUBLISHER_HOST value.
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.ws-publisher.rule=HostRegexp(`^.+[.]pub[.]example[.]com`)"
+      - "traefik.http.routers.ws-publisher.rule=HostRegexp(`^.+[.]wstdwork[.]example[.]com`)"
       - "traefik.http.routers.ws-publisher.entrypoints=https"
       - "traefik.http.routers.ws-publisher.tls=true"
       - "traefik.http.routers.ws-publisher.tls.certresolver=cloudflare"
-      - "traefik.http.routers.ws-publisher.tls.domains[0].main=*.pub.example.com"
-      - "traefik.http.routers.ws-publisher.tls.domains[0].sans=pub.example.com"
+      - "traefik.http.routers.ws-publisher.tls.domains[0].main=*.wstdwork.example.com"
+      - "traefik.http.routers.ws-publisher.tls.domains[0].sans=wstdwork.example.com"
       - "traefik.http.routers.ws-publisher.service=ws-publisher-svc"
       - "traefik.http.routers.ws-publisher.middlewares=gzip"
       - "traefik.http.services.ws-publisher-svc.loadbalancer.server.port=80"
