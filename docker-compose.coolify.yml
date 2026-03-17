@@ -1,0 +1,247 @@
+services:
+  # ── MinIO (S3-compatible object storage) ────────────────────────────────────
+  # SERVICE_FQDN_MINIO_9000 → assigne un domaine public au port 9000 via Coolify UI
+  minio:
+    image: 'ghcr.io/coollabsio/minio:RELEASE.2025-10-15T17-29-55Z'
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    expose:
+      - "9000"
+      - "9001"
+    environment:
+      - SERVICE_FQDN_MINIO_9000
+      - MINIO_ROOT_USER=${SERVICE_USER_MINIO}
+      - MINIO_ROOT_PASSWORD=${SERVICE_PASSWORD_MINIO}
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 20s
+      retries: 10
+
+  # ── MinIO bucket init (runs once) ───────────────────────────────────────────
+  minio-init:
+    image: 'ghcr.io/coollabsio/minio:RELEASE.2025-10-15T17-29-55Z'
+    restart: "no"
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      - MINIO_ROOT_USER=${SERVICE_USER_MINIO}
+      - MINIO_ROOT_PASSWORD=${SERVICE_PASSWORD_MINIO}
+      - S3_BUCKET=${S3_BUCKET:-webstudio-assets}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        mc alias set local http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD
+        mc mb --ignore-existing local/$$S3_BUCKET
+        mc anonymous set download local/$$S3_BUCKET
+        echo 'Bucket ready.'
+
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    expose:
+      - "5432"
+    environment:
+      - POSTGRES_PASSWORD=${SERVICE_PASSWORD_DB}
+      - POSTGRES_DB=${POSTGRES_DB:-webstudio}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    configs:
+      - source: postgres_init
+        target: /docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── PostgREST ───────────────────────────────────────────────────────────────
+  postgrest:
+    image: postgrest/postgrest:v12.2.0
+    restart: unless-stopped
+    expose:
+      - "3000"
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      - PGRST_DB_URI=postgresql://postgres:${SERVICE_PASSWORD_DB}@db:5432/webstudio
+      - PGRST_DB_ANON_ROLE=anon
+      - PGRST_JWT_SECRET=${SERVICE_BASE64_64_PGRST}
+      - PGRST_DB_SCHEMAS=public
+
+  # ── Database setup ──────────────────────────────────────────────────────────
+  db-setup:
+    image: postgres:15-alpine
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        psql "postgresql://postgres:${SERVICE_PASSWORD_DB}@db:5432/webstudio" \
+          -c "DO \$\$ BEGIN IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'anon') THEN CREATE ROLE anon NOLOGIN; END IF; END \$\$;" \
+          -c "GRANT USAGE ON SCHEMA public TO anon;" \
+          -c "GRANT ALL ON ALL TABLES IN SCHEMA public TO anon;" \
+          -c "GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon;" \
+          -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon;" \
+          -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon;"
+
+  # ── Schema migrations ───────────────────────────────────────────────────────
+  migrate:
+    image: ${BUILDER_IMAGE:-ghcr.io/webstudio-community/builder:latest}
+    restart: "no"
+    depends_on:
+      db-setup:
+        condition: service_completed_successfully
+    entrypoint:
+      - /prisma/node_modules/.bin/prisma
+      - migrate
+      - deploy
+      - --schema=/app/prisma/schema.prisma
+    environment:
+      DATABASE_URL: postgresql://postgres:${SERVICE_PASSWORD_DB}@db:5432/webstudio
+      DIRECT_URL: postgresql://postgres:${SERVICE_PASSWORD_DB}@db:5432/webstudio
+
+  # ── Webstudio builder ───────────────────────────────────────────────────────
+  app:
+    image: ${BUILDER_IMAGE:-ghcr.io/webstudio-community/builder:latest}
+    restart: unless-stopped
+    expose:
+      - "3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      - SERVICE_FQDN_APP_3000
+      - APP_FQDN=${APP_FQDN}
+      - NODE_ENV=production
+      - PORT=3000
+      - POSTGREST_URL=http://postgrest:3000
+      - DATABASE_URL=postgresql://postgres:${SERVICE_PASSWORD_DB}@db:5432/webstudio
+      - DIRECT_URL=postgresql://postgres:${SERVICE_PASSWORD_DB}@db:5432/webstudio
+      - AUTH_SECRET=${SERVICE_PASSWORD_AUTH}
+      - DEV_LOGIN=${DEV_LOGIN:-true}
+      - DEV_LOGIN_EMAIL=${DEV_LOGIN_EMAIL:-admin@example.com}
+      - GH_CLIENT_ID=${GH_CLIENT_ID:-}
+      - GH_CLIENT_SECRET=${GH_CLIENT_SECRET:-}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - PGRST_JWT_SECRET=${SERVICE_BASE64_64_PGRST}
+      - PUBLISHER_HOST=${PUBLISHER_HOST:-wstd.work}
+      - FEATURES=${FEATURES:-*}
+      - USER_PLAN=${USER_PLAN:-pro}
+      - MAX_ASSETS_PER_PROJECT=${MAX_ASSETS_PER_PROJECT:-50}
+      - S3_ENDPOINT=${S3_ENDPOINT:-http://minio:9000}
+      - S3_REGION=${S3_REGION:-us-east-1}
+      - S3_ACCESS_KEY_ID=${SERVICE_USER_MINIO}
+      - S3_SECRET_ACCESS_KEY=${SERVICE_PASSWORD_MINIO}
+      - S3_BUCKET=${S3_BUCKET:-webstudio-assets}
+      - ENTRI_APPLICATION_ID=${ENTRI_APPLICATION_ID:-webstudio}
+      - ENTRI_SECRET=${ENTRI_SECRET:-}
+      - TRPC_SERVER_API_TOKEN=${SERVICE_BASE64_64_TRPC}
+      - SELF_HOSTED_PUBLISHER_URL=http://publisher:4000
+      - NODE_TLS_REJECT_UNAUTHORIZED=${NODE_TLS_REJECT_UNAUTHORIZED:-0}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    volumes:
+      - uploads:/app/public/s/uploads
+    # Traefik labels for canvas wildcard subdomain routing.
+    # NOTE: Coolify does NOT interpolate ${VAR} in labels — update the domain values below
+    # before deploying. Replace "webstudio.example.com" with your actual app domain.
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ws-canvas.rule=HostRegexp(`^.+[.]webstudio[.]example[.]com`)"
+      - "traefik.http.routers.ws-canvas.entrypoints=https"
+      - "traefik.http.routers.ws-canvas.tls=true"
+      - "traefik.http.routers.ws-canvas.tls.certresolver=cloudflare"
+      - "traefik.http.routers.ws-canvas.tls.domains[0].main=*.webstudio.example.com"
+      - "traefik.http.routers.ws-canvas.tls.domains[0].sans=webstudio.example.com"
+      - "traefik.http.routers.ws-canvas.service=ws-canvas-svc"
+      - "traefik.http.routers.ws-canvas.middlewares=gzip"
+      - "traefik.http.services.ws-canvas-svc.loadbalancer.server.port=3000"
+
+  # ── Self-hosted publisher ────────────────────────────────────────────────────
+  publisher:
+    image: ${PUBLISHER_IMAGE:-ghcr.io/webstudio-community/webstudio-publisher:latest}
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      - TRPC_SERVER_API_TOKEN=${SERVICE_BASE64_64_TRPC}
+      - PUBLISHER_HOST=${PUBLISHER_HOST:-wstd.work}
+      - BUILDER_INTERNAL_URL=http://app:3000
+    volumes:
+      - published-sites:/var/publish
+      - publisher-work:/var/work
+
+  # ── Nginx — static site server ───────────────────────────────────────────────
+  # SERVICE_FQDN_NGINX_80 → Coolify/Traefik assigne un domaine wildcard à ce service.
+  # Dans Coolify UI : configure le domaine en *.PUBLISHER_HOST (ex: *.mondomaine.com).
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    expose:
+      - "80"
+    environment:
+      - SERVICE_FQDN_NGINX_80
+    depends_on:
+      app:
+        condition: service_healthy
+    volumes:
+      - published-sites:/var/publish:ro
+    entrypoint:
+      - /bin/sh
+      - -c
+      - "echo 'IyMKIyMgV2Vic3R1ZGlvIHNlbGYtaG9zdGluZyBzdGF0aWMgZmlsZSBzZXJ2ZXIuCiMjCiMjIFNlcnZlcyBwdWJsaXNoZWQgV2Vic3R1ZGlvIHByb2plY3RzLgojIyBGaWxlcyBhcmUgd3JpdHRlbiB0byAvdmFyL3B1Ymxpc2gvPGRvbWFpbj4vIGJ5IHRoZSBwdWJsaXNoZXIgc2VydmljZS4KIyMKIyMgQWxsIHVucmVjb2duaXNlZCByZXF1ZXN0cyBmYWxsIHRocm91Z2ggdG8gdGhlIGJ1aWxkZXIgYXBwICh1cHN0cmVhbSAiYXBwOjMwMDAiKS4KIyMKCmV2ZW50cyB7CiAgd29ya2VyX2Nvbm5lY3Rpb25zIDEwMjQ7Cn0KCmh0dHAgewogIGluY2x1ZGUgICAgICAgL2V0Yy9uZ2lueC9taW1lLnR5cGVzOwogIGRlZmF1bHRfdHlwZSAgYXBwbGljYXRpb24vb2N0ZXQtc3RyZWFtOwogIHNlbmRmaWxlICAgICAgb247CiAgZ3ppcCAgICAgICAgICBvbjsKICBnemlwX3R5cGVzICAgIHRleHQvcGxhaW4gdGV4dC9jc3MgYXBwbGljYXRpb24vanNvbiBhcHBsaWNhdGlvbi9qYXZhc2NyaXB0IHRleHQveG1sIGFwcGxpY2F0aW9uL3htbCBpbWFnZS9zdmcreG1sOwoKICB1cHN0cmVhbSBidWlsZGVyIHsKICAgIHNlcnZlciBhcHA6MzAwMDsKICB9CgogIHNlcnZlciB7CiAgICBsaXN0ZW4gODAgZGVmYXVsdF9zZXJ2ZXI7CiAgICBzZXJ2ZXJfbmFtZSBfOwoKICAgIHJvb3QgL3Zhci9wdWJsaXNoLyRob3N0OwogICAgaW5kZXggaW5kZXguaHRtbDsKCiAgICBsb2NhdGlvbiAvIHsKICAgICAgdHJ5X2ZpbGVzICR1cmkgJHVyaS8gJHVyaS5odG1sIC9pbmRleC5odG1sIEBidWlsZGVyOwogICAgfQoKICAgIGxvY2F0aW9uIEBidWlsZGVyIHsKICAgICAgcHJveHlfcGFzcyAgICAgICAgIGh0dHA6Ly9idWlsZGVyOwogICAgICBwcm94eV9zZXRfaGVhZGVyICAgSG9zdCAgICAgICAgICAgICAgJGhvc3Q7CiAgICAgIHByb3h5X3NldF9oZWFkZXIgICBYLVJlYWwtSVAgICAgICAgICAkcmVtb3RlX2FkZHI7CiAgICAgIHByb3h5X3NldF9oZWFkZXIgICBYLUZvcndhcmRlZC1Gb3IgICAkcHJveHlfYWRkX3hfZm9yd2FyZGVkX2ZvcjsKICAgICAgcHJveHlfc2V0X2hlYWRlciAgIFgtRm9yd2FyZGVkLVByb3RvICRzY2hlbWU7CiAgICAgIHByb3h5X3JlYWRfdGltZW91dCA2MHM7CiAgICB9CgogICAgbG9jYXRpb24gfiogXC4oanN8Y3NzfHBuZ3xqcGd8anBlZ3xnaWZ8aWNvfHN2Z3x3b2ZmfHdvZmYyfHR0Znxlb3QpJCB7CiAgICAgIHRyeV9maWxlcyAkdXJpIEBidWlsZGVyOwogICAgICBleHBpcmVzIDF5OwogICAgICBhZGRfaGVhZGVyIENhY2hlLUNvbnRyb2wgInB1YmxpYywgaW1tdXRhYmxlIjsKICAgIH0KICB9Cn0K' | base64 -d > /etc/nginx/nginx.conf && exec nginx -g 'daemon off;'"
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 80 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    # Traefik labels for published sites wildcard routing.
+    # NOTE: Coolify does NOT interpolate ${VAR} in labels — update the domain values below
+    # before deploying. Replace "pub.example.com" with your PUBLISHER_HOST value.
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ws-publisher.rule=HostRegexp(`^.+[.]pub[.]example[.]com`)"
+      - "traefik.http.routers.ws-publisher.entrypoints=https"
+      - "traefik.http.routers.ws-publisher.tls=true"
+      - "traefik.http.routers.ws-publisher.tls.certresolver=cloudflare"
+      - "traefik.http.routers.ws-publisher.tls.domains[0].main=*.pub.example.com"
+      - "traefik.http.routers.ws-publisher.tls.domains[0].sans=pub.example.com"
+      - "traefik.http.routers.ws-publisher.service=ws-publisher-svc"
+      - "traefik.http.routers.ws-publisher.middlewares=gzip"
+      - "traefik.http.services.ws-publisher-svc.loadbalancer.server.port=80"
+
+configs:
+  postgres_init:
+    content: |
+      CREATE SCHEMA IF NOT EXISTS extensions;
+      CREATE EXTENSION IF NOT EXISTS "uuid-ossp" SCHEMA extensions;
+      ALTER DATABASE webstudio SET search_path TO "$$user", public, extensions;
+      CREATE ROLE anon NOLOGIN;
+      GRANT USAGE ON SCHEMA public TO anon;
+      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon;
+      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon;
+
+volumes:
+  db-data:
+  uploads:
+  minio-data:
+  published-sites:
+  publisher-work:
