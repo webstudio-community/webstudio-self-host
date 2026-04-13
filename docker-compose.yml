@@ -167,7 +167,8 @@ services:
       PGRST_JWT_SECRET: ${PGRST_JWT_SECRET}
       PUBLISHER_HOST: ${PUBLISHER_HOST:-wstd.work}
       FEATURES: ${FEATURES:-*}
-      USER_PLAN: ${USER_PLAN:-pro}
+      USER_PLAN: ${USER_PLAN:-Pro}
+      PLANS: ${PLANS:-[{"name":"Pro","features":{"canDownloadAssets":true,"canRestoreBackups":true,"allowAdditionalPermissions":true,"allowDynamicData":true,"allowContentMode":true,"allowStagingPublish":true,"maxContactEmailsPerProject":1000,"maxDomainsAllowedPerUser":1000,"maxDailyPublishesPerUser":1000,"maxWorkspaces":100,"maxProjectsAllowedPerUser":1000,"maxAssetsPerProject":10000,"minSeats":0,"maxSeatsPerWorkspace":100}}]}
       MAX_ASSETS_PER_PROJECT: ${MAX_ASSETS_PER_PROJECT:-50}
       S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
       S3_REGION: ${S3_REGION:-us-east-1}
