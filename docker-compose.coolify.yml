@@ -175,47 +175,36 @@ services:
       - "traefik.http.services.ws-canvas-svc.loadbalancer.server.port=3000"
 
   # ── Self-hosted publisher ────────────────────────────────────────────────────
+  # Port 4000 (internal): build API — receives publish requests from the builder.
+  # Port 4001 (public via Traefik): site proxy — serves all published sites.
+  #   SSR domains → reverse-proxied to their react-router-serve subprocess
+  #   SSG domains → static files served directly from /var/publish/<domain>/
+  #
+  # Traefik labels for published sites wildcard routing.
+  # NOTE: Coolify does NOT interpolate ${VAR} in labels — update the domain values below
+  # before deploying. Replace "wstdwork.example.com" with your PUBLISHER_HOST value.
   publisher:
     image: ${PUBLISHER_IMAGE:-ghcr.io/webstudio-community/webstudio-publisher:latest}
     restart: unless-stopped
     depends_on:
       app:
         condition: service_healthy
+    expose:
+      - "4000"
+      - "4001"
     environment:
       - TRPC_SERVER_API_TOKEN=${SERVICE_BASE64_64_TRPC}
       - PUBLISHER_HOST=${PUBLISHER_HOST:-wstd.work}
       - BUILDER_INTERNAL_URL=http://app:3000
+      - PROXY_PORT=4001
     volumes:
       - published-sites:/var/publish
       - publisher-work:/var/work
-
-  # ── Nginx — static site server ───────────────────────────────────────────────
-  # SERVICE_FQDN_NGINX_80 → Coolify/Traefik assigne un domaine wildcard à ce service.
-  # Dans Coolify UI : configure le domaine en *.PUBLISHER_HOST (ex: *.mondomaine.com).
-  nginx:
-    image: nginx:alpine
-    restart: unless-stopped
-    expose:
-      - "80"
-    environment:
-      - SERVICE_FQDN_NGINX_80
-    depends_on:
-      app:
-        condition: service_healthy
-    volumes:
-      - published-sites:/var/publish:ro
-    entrypoint:
-      - /bin/sh
-      - -c
-      - "echo 'IyMKIyMgV2Vic3R1ZGlvIHNlbGYtaG9zdGluZyBzdGF0aWMgZmlsZSBzZXJ2ZXIuCiMjCiMjIFNlcnZlcyBwdWJsaXNoZWQgV2Vic3R1ZGlvIHByb2plY3RzLgojIyBGaWxlcyBhcmUgd3JpdHRlbiB0byAvdmFyL3B1Ymxpc2gvPGRvbWFpbj4vIGJ5IHRoZSBwdWJsaXNoZXIgc2VydmljZS4KIyMKIyMgQWxsIHVucmVjb2duaXNlZCByZXF1ZXN0cyBmYWxsIHRocm91Z2ggdG8gdGhlIGJ1aWxkZXIgYXBwICh1cHN0cmVhbSAiYXBwOjMwMDAiKS4KIyMKCmV2ZW50cyB7CiAgd29ya2VyX2Nvbm5lY3Rpb25zIDEwMjQ7Cn0KCmh0dHAgewogIGluY2x1ZGUgICAgICAgL2V0Yy9uZ2lueC9taW1lLnR5cGVzOwogIGRlZmF1bHRfdHlwZSAgYXBwbGljYXRpb24vb2N0ZXQtc3RyZWFtOwogIHNlbmRmaWxlICAgICAgb247CiAgZ3ppcCAgICAgICAgICBvbjsKICBnemlwX3R5cGVzICAgIHRleHQvcGxhaW4gdGV4dC9jc3MgYXBwbGljYXRpb24vanNvbiBhcHBsaWNhdGlvbi9qYXZhc2NyaXB0IHRleHQveG1sIGFwcGxpY2F0aW9uL3htbCBpbWFnZS9zdmcreG1sOwoKICB1cHN0cmVhbSBidWlsZGVyIHsKICAgIHNlcnZlciBhcHA6MzAwMDsKICB9CgogIHNlcnZlciB7CiAgICBsaXN0ZW4gODAgZGVmYXVsdF9zZXJ2ZXI7CiAgICBzZXJ2ZXJfbmFtZSBfOwoKICAgIHJvb3QgL3Zhci9wdWJsaXNoLyRob3N0OwogICAgaW5kZXggaW5kZXguaHRtbDsKCiAgICBsb2NhdGlvbiAvIHsKICAgICAgdHJ5X2ZpbGVzICR1cmkgJHVyaS8gJHVyaS5odG1sIC9pbmRleC5odG1sIEBidWlsZGVyOwogICAgfQoKICAgIGxvY2F0aW9uIEBidWlsZGVyIHsKICAgICAgcHJveHlfcGFzcyAgICAgICAgIGh0dHA6Ly9idWlsZGVyOwogICAgICBwcm94eV9zZXRfaGVhZGVyICAgSG9zdCAgICAgICAgICAgICAgJGhvc3Q7CiAgICAgIHByb3h5X3NldF9oZWFkZXIgICBYLVJlYWwtSVAgICAgICAgICAkcmVtb3RlX2FkZHI7CiAgICAgIHByb3h5X3NldF9oZWFkZXIgICBYLUZvcndhcmRlZC1Gb3IgICAkcHJveHlfYWRkX3hfZm9yd2FyZGVkX2ZvcjsKICAgICAgcHJveHlfc2V0X2hlYWRlciAgIFgtRm9yd2FyZGVkLVByb3RvICRzY2hlbWU7CiAgICAgIHByb3h5X3JlYWRfdGltZW91dCA2MHM7CiAgICB9CgogICAgbG9jYXRpb24gfiogXC4oanN8Y3NzfHBuZ3xqcGd8anBlZ3xnaWZ8aWNvfHN2Z3x3b2ZmfHdvZmYyfHR0Znxlb3QpJCB7CiAgICAgIHRyeV9maWxlcyAkdXJpIEBidWlsZGVyOwogICAgICBleHBpcmVzIDF5OwogICAgICBhZGRfaGVhZGVyIENhY2hlLUNvbnRyb2wgInB1YmxpYywgaW1tdXRhYmxlIjsKICAgIH0KICB9Cn0K' | base64 -d > /etc/nginx/nginx.conf && exec nginx -g 'daemon off;'"
     healthcheck:
-      test: ["CMD-SHELL", "nc -z 127.0.0.1 80 || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:4000/health || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
-    # Traefik labels for published sites wildcard routing.
-    # NOTE: Coolify does NOT interpolate ${VAR} in labels — update the domain values below
-    # before deploying. Replace "wstdwork.example.com" with your PUBLISHER_HOST value.
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.ws-publisher.rule=HostRegexp(`^.+[.]wstdwork[.]example[.]com`)"
@@ -226,7 +215,7 @@ services:
       - "traefik.http.routers.ws-publisher.tls.domains[0].sans=wstdwork.example.com"
       - "traefik.http.routers.ws-publisher.service=ws-publisher-svc"
       - "traefik.http.routers.ws-publisher.middlewares=gzip"
-      - "traefik.http.services.ws-publisher-svc.loadbalancer.server.port=80"
+      - "traefik.http.services.ws-publisher-svc.loadbalancer.server.port=4001"
 
 configs:
   postgres_init:
