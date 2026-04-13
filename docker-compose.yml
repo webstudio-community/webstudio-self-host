@@ -108,41 +108,32 @@ services:
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/webstudio
       DIRECT_URL: postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/webstudio
 
-  # ── Nginx reverse proxy + static file server ────────────────────────────────
-  # Serves published projects from /var/publish/<domain>/ and proxies
-  # everything else to the builder app.
-  nginx:
-    image: nginx:alpine
-    restart: unless-stopped
-    depends_on:
-      app:
-        condition: service_healthy
-    ports:
-      - "80:80"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - published-sites:/var/publish:ro
-    healthcheck:
-      test: ["CMD", "nginx", "-t"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
   # ── Self-hosted publisher ────────────────────────────────────────────────────
-  # Generates static HTML on publish and writes to the published-sites volume.
+  # Port 4000 (internal): build API — receives publish requests from the builder.
+  # Port 4001 → host 80: site proxy — serves all published sites.
+  #   SSR domains → reverse-proxied to their react-router-serve subprocess
+  #   SSG domains → static files served directly from /var/publish/<domain>/
   publisher:
     image: ${PUBLISHER_IMAGE:-ghcr.io/webstudio-community/webstudio-publisher:latest}
     restart: unless-stopped
     depends_on:
       app:
         condition: service_healthy
+    ports:
+      - "80:4001"
     environment:
       TRPC_SERVER_API_TOKEN: ${TRPC_SERVER_API_TOKEN}
       PUBLISHER_HOST: ${PUBLISHER_HOST:-}
       BUILDER_INTERNAL_URL: http://app:3000
+      PROXY_PORT: "4001"
     volumes:
       - published-sites:/var/publish
       - publisher-work:/var/work
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:4000/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   # ── Webstudio builder ───────────────────────────────────────────────────────
   app:
