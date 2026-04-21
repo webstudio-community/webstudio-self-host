@@ -126,6 +126,11 @@ services:
       PUBLISHER_HOST: ${PUBLISHER_HOST:-}
       BUILDER_INTERNAL_URL: http://app:3000
       PROXY_PORT: "4001"
+      # Optional: set to your Traefik file-provider directory to enable auto-generation
+      # of per-domain route configs for custom domains (with TLS via Let's Encrypt).
+      # Example: TRAEFIK_DYNAMIC_DIR=/etc/traefik/dynamic
+      # Also add a bind mount below: - ${TRAEFIK_DYNAMIC_DIR}:${TRAEFIK_DYNAMIC_DIR}:rw
+      TRAEFIK_DYNAMIC_DIR: ${TRAEFIK_DYNAMIC_DIR:-}
     volumes:
       - published-sites:/var/publish
       - publisher-work:/var/work
