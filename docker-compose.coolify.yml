@@ -197,9 +197,16 @@ services:
       - PUBLISHER_HOST=${PUBLISHER_HOST:-wstd.work}
       - BUILDER_INTERNAL_URL=http://app:3000
       - PROXY_PORT=4001
+      # Enables auto-generation of Traefik dynamic config files for custom domains.
+      # The publisher writes one YAML file per custom domain so Traefik can route
+      # traffic and request a Let's Encrypt certificate automatically.
+      - TRAEFIK_DYNAMIC_DIR=/data/coolify/proxy/dynamic
     volumes:
       - published-sites:/var/publish
       - publisher-work:/var/work
+      # Required for TRAEFIK_DYNAMIC_DIR: gives the publisher write access to the
+      # Traefik file-provider directory so it can create per-domain route configs.
+      - /data/coolify/proxy/dynamic:/data/coolify/proxy/dynamic:rw
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:4000/health || exit 1"]
       interval: 30s
