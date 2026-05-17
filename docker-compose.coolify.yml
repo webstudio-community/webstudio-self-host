@@ -138,7 +138,14 @@ services:
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
       - DEPLOYMENT_ENVIRONMENT=production
-      - DEPLOYMENT_URL=${SERVICE_FQDN_APP}
+      # SERVICE_URL_APP is injected by Coolify and includes the https:// prefix.
+      # Do not use SERVICE_FQDN_APP here — it is the bare hostname without protocol
+      # and will fail the URL validation check on startup.
+      - DEPLOYMENT_URL=${SERVICE_URL_APP}
+      # Required in production — used as OAuth server credentials for the webstudio CLI
+      # (webstudio sync / webstudio build). Any non-empty, non-default values work.
+      - AUTH_WS_CLIENT_ID=${AUTH_WS_CLIENT_ID:-self-hosted}
+      - AUTH_WS_CLIENT_SECRET=${SERVICE_PASSWORD_AUTH}
       - PGRST_JWT_SECRET=${SERVICE_BASE64_64_PGRST}
       - PUBLISHER_HOST=${PUBLISHER_HOST:-wstd.work}
       - FEATURES=${FEATURES:-*}
