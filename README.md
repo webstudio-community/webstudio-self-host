@@ -49,6 +49,12 @@ openssl rand -hex 64
 openssl rand -hex 32
 ```
 
+If you plan to use OAuth (GitHub or Google), also set `DEPLOYMENT_URL` in your `.env` to your builder's public URL — the app uses it to construct the OAuth callback URL sent to the provider:
+
+```env
+DEPLOYMENT_URL=https://webstudio.your-domain.com
+```
+
 Then start:
 
 ```bash
@@ -197,6 +203,7 @@ DEV_LOGIN_EMAIL=admin@example.com
 # Option B: GitHub OAuth
 # GH_CLIENT_ID=...
 # GH_CLIENT_SECRET=...
+# Note: DEPLOYMENT_URL is automatically set to https://${APP_FQDN} by the compose file
 ```
 
 ### 5 — Deploy
@@ -231,6 +238,8 @@ DB migrations run automatically on every restart.
 | `DEV_LOGIN_EMAIL` | — | `admin@example.com` | Email for dev login |
 | `GH_CLIENT_ID` / `GH_CLIENT_SECRET` | — | — | GitHub OAuth |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | — | — | Google OAuth |
+| `DEPLOYMENT_URL` | ✅ (OAuth) | — | Builder's public URL, no trailing slash (e.g. `https://webstudio.your-domain.com`). Required for GitHub/Google OAuth callback URLs to be correct. Auto-set from `APP_FQDN` in Coolify. |
+| `DEPLOYMENT_ENVIRONMENT` | — | — | Set to `production` automatically by both compose files. |
 | `PUBLISHER_HOST` | — | `wstd.work` | Domain suffix for published project URLs |
 | `TRPC_SERVER_API_TOKEN` | — | — | Service token shared between builder and publisher |
 | `SELF_HOSTED_PUBLISHER_URL` | — | `http://publisher:4000` | Internal publisher URL |
