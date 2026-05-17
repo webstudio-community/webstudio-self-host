@@ -226,6 +226,56 @@ DB migrations run automatically on every restart.
 
 ---
 
+## Authentication
+
+Three login modes are available. Choose one and set the corresponding variables.
+
+### Option A — Simple password login (default)
+
+No external provider needed. Set in `.env` (plain Compose) or Coolify environment:
+
+```env
+DEV_LOGIN=true
+DEV_LOGIN_EMAIL=admin@example.com
+```
+
+The password is the value of `AUTH_SECRET`.
+
+### Option B — GitHub OAuth
+
+1. Go to **github.com → Settings → Developer Settings → OAuth Apps → New OAuth App**
+2. Fill in:
+   - **Homepage URL**: `https://webstudio.your-domain.com`
+   - **Authorization callback URL**: `https://webstudio.your-domain.com/auth/github/callback`
+3. Copy the **Client ID** and generate a **Client Secret**
+4. Remove `DEV_LOGIN` from your env, then add:
+
+```env
+GH_CLIENT_ID=your-client-id
+GH_CLIENT_SECRET=your-client-secret
+DEPLOYMENT_URL=https://webstudio.your-domain.com
+```
+
+> With Coolify: `DEPLOYMENT_URL` is automatically set to `https://${APP_FQDN}` — no need to add it manually.
+
+### Option C — Google OAuth
+
+1. Go to **console.cloud.google.com → APIs & Services → Credentials → Create OAuth 2.0 Client ID**
+2. Application type: **Web application**
+3. Under **Authorized redirect URIs**, add: `https://webstudio.your-domain.com/auth/google/callback`
+4. Copy the **Client ID** and **Client Secret**
+5. Remove `DEV_LOGIN` from your env, then add:
+
+```env
+GOOGLE_CLIENT_ID=your-client-id
+GOOGLE_CLIENT_SECRET=your-client-secret
+DEPLOYMENT_URL=https://webstudio.your-domain.com
+```
+
+> With Coolify: `DEPLOYMENT_URL` is automatically set to `https://${APP_FQDN}` — no need to add it manually.
+
+---
+
 ## Environment variables
 
 | Variable | Required | Default | Description |
