@@ -196,7 +196,7 @@ PUBLISHER_HOST=wstdwork.your-domain.com
 
 # How users log in — choose one:
 
-# Option A: simple login (no password — access is open to anyone with the URL)
+# Option A: simple password login (password = AUTH_SECRET value, shown in Coolify)
 DEV_LOGIN=true
 DEV_LOGIN_EMAIL=admin@example.com
 
@@ -230,7 +230,7 @@ DB migrations run automatically on every restart.
 
 Three login modes are available. Choose one and set the corresponding variables.
 
-### Option A — Simple login (default)
+### Option A — Simple password login (default)
 
 No external provider needed. Set in `.env` (plain Compose) or Coolify environment:
 
@@ -239,7 +239,7 @@ DEV_LOGIN=true
 DEV_LOGIN_EMAIL=admin@example.com
 ```
 
-No password is required — anyone with access to the URL can log in with this email. Use this only on a private or trusted network.
+The password is the value of `AUTH_SECRET` (visible in Coolify under the service's environment variables).
 
 ### Option B — GitHub OAuth
 
@@ -284,7 +284,7 @@ DEPLOYMENT_URL=https://webstudio.your-domain.com
 | `PGRST_JWT_SECRET` | ✅ | — | Secret for PostgREST JWT auth (≥ 64 chars) |
 | `AUTH_SECRET` | ✅ | — | Session cookie signing secret |
 | `APP_FQDN` | ✅ (Coolify) | — | Builder public domain (e.g. `webstudio.your-domain.com`) |
-| `DEV_LOGIN` | — | — | `true` = open login, no password. Use only on trusted networks. |
+| `DEV_LOGIN` | — | — | `true` = password login using `AUTH_SECRET` as the password. |
 | `DEV_LOGIN_EMAIL` | — | `admin@example.com` | Email used for dev login |
 | `GH_CLIENT_ID` / `GH_CLIENT_SECRET` | — | — | GitHub OAuth |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | — | — | Google OAuth |
