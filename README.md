@@ -256,7 +256,7 @@ GH_CLIENT_SECRET=your-client-secret
 DEPLOYMENT_URL=https://webstudio.your-domain.com
 ```
 
-> With Coolify: `DEPLOYMENT_URL` is automatically set to `https://${APP_FQDN}` — no need to add it manually.
+> With Coolify: `DEPLOYMENT_URL` is automatically set from `SERVICE_FQDN_APP_3000` — no need to add it manually.
 
 ### Option C — Google OAuth
 
@@ -272,7 +272,7 @@ GOOGLE_CLIENT_SECRET=your-client-secret
 DEPLOYMENT_URL=https://webstudio.your-domain.com
 ```
 
-> With Coolify: `DEPLOYMENT_URL` is automatically set to `https://${APP_FQDN}` — no need to add it manually.
+> With Coolify: `DEPLOYMENT_URL` is automatically set from `SERVICE_FQDN_APP_3000` — no need to add it manually.
 
 ---
 
@@ -288,7 +288,7 @@ DEPLOYMENT_URL=https://webstudio.your-domain.com
 | `DEV_LOGIN_EMAIL` | — | `admin@example.com` | Email for dev login |
 | `GH_CLIENT_ID` / `GH_CLIENT_SECRET` | — | — | GitHub OAuth |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | — | — | Google OAuth |
-| `DEPLOYMENT_URL` | ✅ (OAuth) | — | Builder's public URL, no trailing slash (e.g. `https://webstudio.your-domain.com`). Required for GitHub/Google OAuth callback URLs to be correct. Auto-set from `APP_FQDN` in Coolify. |
+| `DEPLOYMENT_URL` | ✅ (OAuth) | — | Builder's public URL (e.g. `https://webstudio.your-domain.com`). Required for GitHub/Google OAuth callback URLs to be correct. Auto-set from `SERVICE_FQDN_APP_3000` in Coolify. |
 | `DEPLOYMENT_ENVIRONMENT` | — | — | Set to `production` automatically by both compose files. |
 | `PUBLISHER_HOST` | — | `wstd.work` | Domain suffix for published project URLs |
 | `TRPC_SERVER_API_TOKEN` | — | — | Service token shared between builder and publisher |
