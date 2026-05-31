@@ -286,7 +286,7 @@ Standard setup: create a CNAME record pointing to your server hostname. The buil
 
 ### Apex domain (`example.com`)
 
-Apex domains cannot use a CNAME record with most DNS providers. Use an **A record** instead.
+Apex domains cannot use a CNAME record with most DNS providers. The builder detects this and shows an **A record** instruction instead.
 
 **DNS records to create:**
 
@@ -295,13 +295,11 @@ Apex domains cannot use a CNAME record with most DNS providers. Use an **A recor
 | A | `@` | your server IP |
 | TXT | `_webstudio_is` | the token shown in the Publish panel |
 
-> The builder UI shows a CNAME instruction — **ignore it for apex domains**. Only the TXT record is required for ownership verification. The A record handles traffic routing.
-
 **Steps:**
 
 1. In the builder, open **Publish → Add a new domain** and enter `example.com`
-2. Copy the TXT record value shown in the panel
-3. In your DNS provider, create the A record and TXT record above
+2. The panel shows the A record and TXT record to create — copy the TXT value
+3. In your DNS provider, create both records
 4. Wait for DNS propagation (a few minutes to an hour), then click **Verify**
 5. Publish — the site is served from `example.com` with an automatic Let's Encrypt certificate
 
