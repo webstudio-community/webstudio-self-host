@@ -276,6 +276,39 @@ DEPLOYMENT_URL=https://webstudio.your-domain.com
 
 ---
 
+## Custom domains
+
+Once a project is published you can attach any custom domain — including an **apex (root) domain** like `example.com` — via the **Publish** panel in the builder.
+
+### Subdomain (`www.example.com`)
+
+Standard setup: create a CNAME record pointing to your server hostname. The builder UI will show you the exact CNAME target and TXT verification record to add.
+
+### Apex domain (`example.com`)
+
+Apex domains cannot use a CNAME record with most DNS providers. Use an **A record** instead.
+
+**DNS records to create:**
+
+| Type | Name | Value |
+|------|------|-------|
+| A | `@` | your server IP |
+| TXT | `_webstudio_is` | the token shown in the Publish panel |
+
+> The builder UI shows a CNAME instruction — **ignore it for apex domains**. Only the TXT record is required for ownership verification. The A record handles traffic routing.
+
+**Steps:**
+
+1. In the builder, open **Publish → Add a new domain** and enter `example.com`
+2. Copy the TXT record value shown in the panel
+3. In your DNS provider, create the A record and TXT record above
+4. Wait for DNS propagation (a few minutes to an hour), then click **Verify**
+5. Publish — the site is served from `example.com` with an automatic Let's Encrypt certificate
+
+Each apex domain is independent: multiple projects can each have their own apex domain pointing to the same server.
+
+---
+
 ## Environment variables
 
 | Variable | Required | Default | Description |
