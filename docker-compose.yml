@@ -47,7 +47,9 @@ services:
       POSTGRES_DB: webstudio
     volumes:
       - db-data:/var/lib/postgresql/data
-      - ./postgres-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    configs:
+      - source: postgres_init
+        target: /docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
@@ -190,6 +192,17 @@ services:
       SELF_HOSTED_PUBLISHER_URL: ${SELF_HOSTED_PUBLISHER_URL:-http://publisher:4000}
     volumes:
       - uploads:/app/public/s/uploads
+
+configs:
+  postgres_init:
+    content: |
+      CREATE SCHEMA IF NOT EXISTS extensions;
+      CREATE EXTENSION IF NOT EXISTS "uuid-ossp" SCHEMA extensions;
+      ALTER DATABASE webstudio SET search_path TO "$$user", public, extensions;
+      CREATE ROLE anon NOLOGIN;
+      GRANT USAGE ON SCHEMA public TO anon;
+      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon;
+      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon;
 
 volumes:
   db-data:
