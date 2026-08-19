@@ -241,6 +241,8 @@ DEV_LOGIN_EMAIL=admin@example.com
 
 The password is the value of `AUTH_SECRET` (visible in Coolify under the service's environment variables).
 
+Also set `DEPLOYMENT_URL` in your `.env` (plain Compose — Coolify sets it automatically): the compose file always passes the variable through, and the app refuses to start if it's empty. With Coolify this is set automatically from `SERVICE_URL_APP`; with plain Compose, set it to your builder's URL (e.g. `http://localhost:3000` for local testing, see [Testing locally over plain HTTP](#testing-locally-over-plain-http)).
+
 ### Option B: GitHub OAuth
 
 1. Go to **github.com → Settings → Developer Settings → OAuth Apps → New OAuth App**
@@ -280,10 +282,13 @@ Session cookies use the `__Host-` prefix, which requires HTTPS. If you're runnin
 
 ```env
 DEPLOYMENT_ENVIRONMENT=development
+DEPLOYMENT_URL=http://localhost:3000
 ALLOW_INSECURE_COOKIES=true
 ```
 
-Never set these on a real deployment — `ALLOW_INSECURE_COOKIES` is refused at startup when `DEPLOYMENT_ENVIRONMENT=production` (the default).
+`DEPLOYMENT_URL` is required here too, even for dev login: the compose file always passes it through, and the app refuses to start on an empty value.
+
+Never set `DEPLOYMENT_ENVIRONMENT`/`ALLOW_INSECURE_COOKIES` like this on a real deployment — `ALLOW_INSECURE_COOKIES` is refused at startup when `DEPLOYMENT_ENVIRONMENT=production` (the default).
 
 ---
 
