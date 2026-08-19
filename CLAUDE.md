@@ -79,3 +79,4 @@ FEATURES=*
 - Nginx sert `/var/publish/<hostname>/` — le hostname doit correspondre exactement au domaine configuré
 - Pour les custom domains avec Traefik : monter `/data/coolify/proxy/dynamic` dans le publisher et définir `TRAEFIK_DYNAMIC_DIR`
 - Les cookies de session utilisent le préfixe `__Host-` (nécessite HTTPS) — pour tester `docker-compose.yml` en local sur `http://localhost` sans TLS, définir `DEPLOYMENT_ENVIRONMENT=development` et `ALLOW_INSECURE_COOKIES=true` dans `.env` (jamais en déploiement réel)
+- Le script d'init Postgres (rôle `anon`, schema `extensions`, `search_path`) est inliné dans `docker-compose.yml` via un bloc `configs:` (pas un fichier `postgres-init.sql` séparé) — les deux compose files sont donc chacun autonomes, utilisables sans rien d'autre que le fichier lui-même
