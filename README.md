@@ -323,6 +323,57 @@ Each apex domain is independent: multiple projects can each have their own apex 
 
 ---
 
+## Publish targets
+
+The **Publish** panel has two selectors (shown when `PUBLISHER_HOST` is set), remembered per project:
+
+- **Rendering** — `Static (SSG)` (prerendered HTML) or `Dynamic (SSR)` (a Node app, one Docker container per site)
+- **Hosting** — where the result is served
+
+| Rendering | Hosting | What it does | Served by |
+|-----------|---------|--------------|-----------|
+| Static / Dynamic | **This Webstudio instance** | served locally: static files, or a `docker run` container | publisher proxy / `nginx` |
+| Static | **Cloudflare Pages** | `wrangler pages deploy` (needs `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` on the publisher) | Cloudflare |
+| Static | **Remote server (SSH)** | prerenders, then `rsync` to a server you own | your server |
+| — | **Coolify (remote)** | *coming soon* | — |
+
+Unavailable combinations are greyed out in the panel (e.g. Dynamic + Cloudflare, or a hosting option the publisher isn't configured for).
+
+### Remote server (SSH)
+
+Deploy the static build to any server you control over `rsync`/SSH. TLS and the web-server config on that server are your responsibility — the publisher only ships files.
+
+**On the target server:** install `rsync`, and configure a web server (nginx, Caddy…) to serve the deploy directory for your domain.
+
+**Generate a deploy key and authorize it:**
+
+```bash
+ssh-keygen -t ed25519 -f ./ws_deploy -N ''
+ssh-copy-id -i ./ws_deploy.pub deploy@your-server
+```
+
+**Register the target with the publisher** (once per site — `domain` is the project slug). The publisher's build API listens on port `4000` and is reachable only from inside the compose network (it has **no authentication** and the private key travels over it in plaintext — never expose port `4000` publicly), so run this from the server hosting the stack:
+
+```bash
+docker compose exec publisher \
+  curl -sS -X POST http://localhost:4000/targets/ssh-setup \
+    -H 'content-type: application/json' \
+    -d "$(jq -n --arg key "$(cat ./ws_deploy)" '{
+          domain:"my-project", sshHost:"your-server", sshUser:"deploy",
+          sshPath:"/var/www/my-project", sshPort:22, sshPrivateKey:$key,
+          publicUrl:"https://my-project.com" }')"
+```
+
+(`jq` builds the JSON so the multi-line private key is escaped correctly. `curl` and `jq` are both present in the publisher image.)
+
+`sshHost`, `sshUser` and `sshPath` must be plain values (hostname/IP, a normal user name, an absolute path) — they are used as `rsync`/`ssh` arguments and the endpoint rejects anything with shell metacharacters or spaces.
+
+The private key is stored (chmod 600) on the `publisher-work` volume and never leaves the publisher; `ssh-keyscan` pre-seeds `known_hosts` at setup. `publicUrl` (optional) is the origin baked into `og:` tags and `sitemap.xml`; it defaults to the project's first custom domain.
+
+Then pick **Static (SSG)** + **Remote server (SSH)** in the Publish panel and publish. Each publish runs `rsync -az --delete`, so the target directory mirrors the build exactly. Unpublishing or switching targets forgets the site locally but leaves the remote files in place.
+
+---
+
 ## Environment variables
 
 | Variable | Required | Default | Description |
