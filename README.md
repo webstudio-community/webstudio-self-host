@@ -374,7 +374,9 @@ Then pick **Static (SSG)** + **Remote server (SSH)** in the Publish panel and pu
 
 ### Coolify (remote SSR)
 
-Host a **Dynamic (SSR)** site on any Coolify instance — yours, or a different one per client, potentially on another server. The publisher builds the Docker image and pushes it to a registry; the target Coolify pulls it and redeploys when its deploy webhook is triggered.
+<!-- anchor kept as #coolify-remote-ssr; covers both SSR and SSG -->
+
+Host a **Dynamic (SSR)** *or* **Static (SSG)** site on any Coolify instance — yours, or a different one per client, potentially on another server. The publisher builds a Docker image (the SSR app, or `dist/client` wrapped in `nginx:alpine`) and pushes it to a registry; the target Coolify pulls it and redeploys when its deploy webhook is triggered.
 
 **1. Give the publisher a registry.** Set on the publisher (`.env` / Coolify env):
 
@@ -389,13 +391,13 @@ Use a public registry (`ghcr.io`, Docker Hub) — simplest, clients need no cred
 **2. On the target Coolify**, the site owner creates a **Docker Image** application:
 
 - Image: `${REGISTRY_URL}/ws-<project-slug>` — the slug is the project id shown in the Publish panel URL; the tag is `latest`
-- Port: `3000` (the image sets `EXPOSE 3000` and `IPX_HTTP_ALLOW_ALL_DOMAINS=true`)
-- Optional persistent storage at `/var/cache/ipx` so optimized images survive restarts
+- Port: **`3000`** for SSR (the image sets `EXPOSE 3000` and `IPX_HTTP_ALLOW_ALL_DOMAINS=true`), **`80`** for SSG (the `nginx:alpine` image)
+- SSR only: optional persistent storage at `/var/cache/ipx` so optimized images survive restarts
 - Set the app's domain(s) and let Coolify handle TLS
 
 Then they copy the app's **deploy webhook URL** (Settings → Webhooks, or `https://<coolify>/api/v1/deploy?uuid=<app-uuid>` + an API token scoped to `deploy`).
 
-**3. In the Publish panel**, pick **Dynamic (SSR)** + **Coolify (remote)**, paste the webhook URL (and token, if the URL needs one). Publish is blocked until the URL is filled.
+**3. In the Publish panel**, pick **Dynamic (SSR)** or **Static (SSG)** + **Coolify (remote)**, paste the webhook URL (and token, if the URL needs one). Publish is blocked until the URL is filled. For SSG, publish with a custom domain selected so the `og:` / `sitemap.xml` URLs use it.
 
 Each publish: `docker build` → `docker push ${REGISTRY_URL}/ws-<slug>:latest` → `POST` the webhook. The publisher never calls the Coolify API itself and doesn't wait for the deploy to finish — a `2xx` from the webhook means it's queued. Unpublishing forgets the site locally; the Coolify app and the registry images are left in place (they belong to the site owner). The webhook URL must be `https` to a public host.
 
@@ -427,7 +429,7 @@ Each publish: `docker build` → `docker push ${REGISTRY_URL}/ws-<slug>:latest` 
 | `S3_ENDPOINT` / `S3_REGION` / `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` / `S3_BUCKET` | - | MinIO defaults | S3-compatible storage |
 | `ENTRI_APPLICATION_ID` / `ENTRI_SECRET` | - | - | Entri automatic DNS setup (optional) |
 | `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` | - | - | Enables the "Cloudflare Pages" hosting option |
-| `REGISTRY_URL` | - | - | Registry the publisher pushes SSR images to — enables "Coolify (remote)" hosting ([details](#coolify-remote-ssr)) |
+| `REGISTRY_URL` | - | - | Registry the publisher pushes images to — enables "Coolify (remote)" hosting for SSR and SSG ([details](#coolify-remote-ssr)) |
 | `REGISTRY_USER` / `REGISTRY_TOKEN` | - | - | Registry write credentials (omit for public images) |
 | `BUILDER_IMAGE` | - | `ghcr.io/webstudio-community/builder:latest` | Builder Docker image |
 | `PUBLISHER_IMAGE` | - | `ghcr.io/webstudio-community/webstudio-publisher:latest` | Publisher Docker image |
