@@ -335,7 +335,7 @@ The **Publish** panel has two selectors (shown when `PUBLISHER_HOST` is set), re
 | Static / Dynamic | **This Webstudio instance** | served locally: static files, or a `docker run` container | publisher proxy / `nginx` |
 | Static | **Cloudflare Pages** | `wrangler pages deploy` (needs `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` on the publisher) | Cloudflare |
 | Static | **Remote server (SSH)** | prerenders, then `rsync` to a server you own | your server |
-| — | **Coolify (remote)** | *coming soon* | — |
+| Dynamic | **Coolify (remote)** | builds the SSR image, pushes it to a registry, then triggers a deploy webhook | your (or a client's) Coolify |
 
 Unavailable combinations are greyed out in the panel (e.g. Dynamic + Cloudflare, or a hosting option the publisher isn't configured for).
 
@@ -372,6 +372,33 @@ The private key is stored (chmod 600) on the `publisher-work` volume and never l
 
 Then pick **Static (SSG)** + **Remote server (SSH)** in the Publish panel and publish. Each publish runs `rsync -az --delete`, so the target directory mirrors the build exactly. Unpublishing or switching targets forgets the site locally but leaves the remote files in place.
 
+### Coolify (remote SSR)
+
+Host a **Dynamic (SSR)** site on any Coolify instance — yours, or a different one per client, potentially on another server. The publisher builds the Docker image and pushes it to a registry; the target Coolify pulls it and redeploys when its deploy webhook is triggered.
+
+**1. Give the publisher a registry.** Set on the publisher (`.env` / Coolify env):
+
+```env
+REGISTRY_URL=ghcr.io/my-org        # a registry every target Coolify can pull from
+REGISTRY_USER=my-org               # omit both if the images are public
+REGISTRY_TOKEN=ghp_…               # a write token
+```
+
+Use a public registry (`ghcr.io`, Docker Hub) — simplest, clients need no credentials — or run your own (`registry:2` behind Traefik; not bundled in this repo). The publisher also needs the **Docker socket** — uncomment the `/var/run/docker.sock` mount in the `publisher` service.
+
+**2. On the target Coolify**, the site owner creates a **Docker Image** application:
+
+- Image: `${REGISTRY_URL}/ws-<project-slug>` — the slug is the project id shown in the Publish panel URL; the tag is `latest`
+- Port: `3000` (the image sets `EXPOSE 3000` and `IPX_HTTP_ALLOW_ALL_DOMAINS=true`)
+- Optional persistent storage at `/var/cache/ipx` so optimized images survive restarts
+- Set the app's domain(s) and let Coolify handle TLS
+
+Then they copy the app's **deploy webhook URL** (Settings → Webhooks, or `https://<coolify>/api/v1/deploy?uuid=<app-uuid>` + an API token scoped to `deploy`).
+
+**3. In the Publish panel**, pick **Dynamic (SSR)** + **Coolify (remote)**, paste the webhook URL (and token, if the URL needs one). Publish is blocked until the URL is filled.
+
+Each publish: `docker build` → `docker push ${REGISTRY_URL}/ws-<slug>:latest` → `POST` the webhook. The publisher never calls the Coolify API itself and doesn't wait for the deploy to finish — a `2xx` from the webhook means it's queued. Unpublishing forgets the site locally; the Coolify app and the registry images are left in place (they belong to the site owner). The webhook URL must be `https` to a public host.
+
 ---
 
 ## Environment variables
@@ -399,6 +426,9 @@ Then pick **Static (SSG)** + **Remote server (SSH)** in the Publish panel and pu
 | `MAX_ASSETS_PER_PROJECT` | - | `50` | Asset upload limit per project |
 | `S3_ENDPOINT` / `S3_REGION` / `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` / `S3_BUCKET` | - | MinIO defaults | S3-compatible storage |
 | `ENTRI_APPLICATION_ID` / `ENTRI_SECRET` | - | - | Entri automatic DNS setup (optional) |
+| `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` | - | - | Enables the "Cloudflare Pages" hosting option |
+| `REGISTRY_URL` | - | - | Registry the publisher pushes SSR images to — enables "Coolify (remote)" hosting ([details](#coolify-remote-ssr)) |
+| `REGISTRY_USER` / `REGISTRY_TOKEN` | - | - | Registry write credentials (omit for public images) |
 | `BUILDER_IMAGE` | - | `ghcr.io/webstudio-community/builder:latest` | Builder Docker image |
 | `PUBLISHER_IMAGE` | - | `ghcr.io/webstudio-community/webstudio-publisher:latest` | Publisher Docker image |
 
