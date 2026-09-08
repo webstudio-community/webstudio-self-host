@@ -133,9 +133,17 @@ services:
       # Example: TRAEFIK_DYNAMIC_DIR=/etc/traefik/dynamic
       # Also add a bind mount below: - ${TRAEFIK_DYNAMIC_DIR}:${TRAEFIK_DYNAMIC_DIR}:rw
       TRAEFIK_DYNAMIC_DIR: ${TRAEFIK_DYNAMIC_DIR:-}
+      # Optional: "Coolify (remote)" hosting — registry the publisher pushes SSR
+      # images to (the client's Coolify pulls from it). See .env.example.
+      REGISTRY_URL: ${REGISTRY_URL:-}
+      REGISTRY_USER: ${REGISTRY_USER:-}
+      REGISTRY_TOKEN: ${REGISTRY_TOKEN:-}
     volumes:
       - published-sites:/var/publish
       - publisher-work:/var/work
+      # Required for the "Dynamic (SSR)" render mode and "Coolify (remote)"
+      # hosting — the publisher runs `docker build` / `docker push`. Uncomment:
+      # - /var/run/docker.sock:/var/run/docker.sock
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:4000/health || exit 1"]
       interval: 30s
