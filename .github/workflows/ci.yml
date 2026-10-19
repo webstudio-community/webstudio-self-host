@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    # Lundi 06:00 UTC : détecte une image retirée d'un registre (cf. issue #30)
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-yaml:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pipx install yamllint==1.35.1
+      - run: yamllint -c .yamllint.yml docker-compose.yml docker-compose.coolify.yml .github
+
+  compose-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: docker-compose.yml
+        run: docker compose -f docker-compose.yml --env-file .env.example config -q
+      - name: docker-compose.coolify.yml
+        run: |
+          # Coolify injecte SERVICE_* et les domaines au déploiement : on fournit une valeur factice à chaque variable.
+          grep -ohE '\$\{[A-Z_0-9]+' docker-compose.coolify.yml | sed 's/^\${//' | grep -v '_IMAGE$' | sort -u | sed 's/$/=x/' > "$RUNNER_TEMP/coolify.env"
+          docker compose -f docker-compose.coolify.yml --env-file "$RUNNER_TEMP/coolify.env" config -q
+
+  nginx:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # `app` est le service du builder dans le compose : on le fait résoudre pour que nginx -t passe hors réseau compose.
+      - run: >
+          docker run --rm --add-host app:127.0.0.1
+          -v "$PWD/nginx/nginx.conf:/etc/nginx/nginx.conf:ro"
+          nginx:1.27-alpine nginx -t
+
+  images:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: .github/scripts/check-images.sh
