@@ -82,3 +82,11 @@ FEATURES=*
 - Les cookies de session utilisent le préfixe `__Host-` (nécessite HTTPS) — pour tester `docker-compose.yml` en local sur `http://localhost` sans TLS, définir `DEPLOYMENT_ENVIRONMENT=development`, `DEPLOYMENT_URL=http://localhost:3000` et `ALLOW_INSECURE_COOKIES=true` dans `.env` (jamais en déploiement réel)
 - `DEPLOYMENT_URL` est **toujours requis**, même en dev login : `docker-compose.yml` passe la variable telle quelle (chaîne vide si absente de `.env`), et l'app refuse de démarrer sur une valeur vide ("Invalid environment variables")
 - Le script d'init Postgres (rôle `anon`, schema `extensions`, `search_path`) est inliné dans `docker-compose.yml` via un bloc `configs:` (pas un fichier `postgres-init.sql` séparé) — les deux compose files sont donc chacun autonomes, utilisables sans rien d'autre que le fichier lui-même
+
+## CI
+
+`.github/workflows/ci.yml` (PR, push `main`, et lundi 06:00 UTC) : `lint-yaml` (yamllint, config `.yamllint.yml`), `compose-config` (`docker compose config` sur les deux compose, variables Coolify factices), `nginx` (`nginx -t`) et `images` (`.github/scripts/check-images.sh`).
+
+- Les images tierces doivent avoir un **tag épinglé** (pas de `:latest`) ; seules les images `ghcr.io/webstudio-community/*` peuvent rester flottantes. Le script vérifie aussi que chaque image existe sur le registre en `amd64` **et** `arm64` (cible Raspberry Pi) — c'est ce qui aurait détecté le retrait de `minio/minio` (#30). Le job du lundi attrape les images retirées entre deux PR.
+- La CI ne démarre pas la stack : un changement de compose reste à tester avec `docker compose up` (le bucket S3 doit être créé par `minio-init`).
+- En local : `.github/scripts/check-images.sh` (Docker requis pour `compose config` et `manifest inspect`, pas de daemon nécessaire).
