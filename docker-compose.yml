@@ -1,7 +1,10 @@
 services:
-  # ── MinIO (S3-compatible object storage) ────────────────────────────────────
+  # ── S3-compatible object storage (pgsty/silo, fork maintenu de MinIO) ───────
+  # minio/minio n'est plus publié sur Docker Hub ; silo est rétro-compatible
+  # (mêmes variables MINIO_ROOT_*, même endpoint de santé).
   minio:
-    image: minio/minio:latest
+    image: pgsty/silo:RELEASE.2026-10-18T00-00-00Z
+    # digest multi-arch (amd64+arm64) : sha256:2636fc4155d9a7e41ff58cdb65ddd13ba9304e67184e13c25bc5cb34016269d7
     restart: always
     command: server /data --console-address ":9001"
     environment:
@@ -20,7 +23,8 @@ services:
 
   # ── MinIO bucket init (runs once) ───────────────────────────────────────────
   minio-init:
-    image: minio/mc:latest
+    # même image que le serveur : embarque mc/mcli, curl et un shell
+    image: pgsty/silo:RELEASE.2026-10-18T00-00-00Z
     restart: "no"
     depends_on:
       minio:
