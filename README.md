@@ -416,13 +416,19 @@ npx -y --@webstudio-community:registry=https://webstudio.your-domain.com/npm/ \
   @webstudio-community/cli init --link "<share-link>"
 ```
 
-**2. Register the MCP server** — e.g. `.mcp.json` for Claude Code (same `command`/`args` for other clients):
+**2. Register the MCP server** for your agent — `claude`, `codex`, `cursor` or `vscode`:
+
+```bash
+npx -y --@webstudio-community:registry=https://webstudio.your-domain.com/npm/ \
+  @webstudio-community/cli connect claude
+```
+
+This writes the client config (e.g. `.mcp.json` for Claude Code) so that the agent starts the CLI from your instance. Add `--print` to see it without writing anything, or write it by hand:
 
 ```json
 {
   "mcpServers": {
     "webstudio": {
-      "type": "stdio",
       "command": "npx",
       "args": [
         "-y",
@@ -439,7 +445,7 @@ npx -y --@webstudio-community:registry=https://webstudio.your-domain.com/npm/ \
 
 Notes:
 
-- Don't use `npx webstudio …` or `webstudio connect`, which register the upstream npm CLI (`webstudio@latest`).
+- Don't use the npm `webstudio` CLI (`npx webstudio …`): it follows upstream, not your instance. Its `connect` registers `webstudio@latest`.
 - `--@webstudio-community:registry=…` only routes the `@webstudio-community` scope to your instance; the CLI's other dependencies still come from npm. The scope is reserved (and empty) on npm, so forgetting the flag fails with a 404 instead of installing something else.
 - `/npm/*` is public on purpose: the CLI contains no secrets. Project access still requires the share link.
 
