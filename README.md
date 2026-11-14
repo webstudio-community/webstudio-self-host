@@ -403,6 +403,54 @@ Each publish: `docker build` → `docker push ${REGISTRY_URL}/ws-<slug>:latest` 
 
 ---
 
+## AI agents (MCP)
+
+Webstudio's MCP server lets an AI agent (Claude Code, Codex, Cursor, VS Code…) read and edit your projects. It runs through the Webstudio CLI, and **the CLI must come from the same version as your builder**: the public `webstudio` CLI on npm follows upstream Webstudio, and as soon as its API contract differs from your instance, every MCP write is refused (reads keep working).
+
+So every instance serves its own CLI, built from the same commit as the builder, as a minimal npm registry at `https://<builder>/npm/`. Use it instead of `webstudio`:
+
+**1. Link a project** — from the folder the agent will work in, with a share link that has Build access (Share dialog in the builder):
+
+```bash
+npx -y --@webstudio-community:registry=https://webstudio.your-domain.com/npm/ \
+  @webstudio-community/cli init --link "<share-link>"
+```
+
+**2. Register the MCP server** for your agent — `claude`, `codex`, `cursor` or `vscode`:
+
+```bash
+npx -y --@webstudio-community:registry=https://webstudio.your-domain.com/npm/ \
+  @webstudio-community/cli connect claude
+```
+
+This writes the client config (e.g. `.mcp.json` for Claude Code) so that the agent starts the CLI from your instance. Add `--print` to see it without writing anything, or write it by hand:
+
+```json
+{
+  "mcpServers": {
+    "webstudio": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "--@webstudio-community:registry=https://webstudio.your-domain.com/npm/",
+        "@webstudio-community/cli",
+        "mcp"
+      ]
+    }
+  }
+}
+```
+
+**3. Restart your agent.** That's it: after a builder update, the next MCP start picks up the matching CLI automatically — nothing to change in this config.
+
+Notes:
+
+- Don't use the npm `webstudio` CLI (`npx webstudio …`): it follows upstream, not your instance. Its `connect` registers `webstudio@latest`.
+- `--@webstudio-community:registry=…` only routes the `@webstudio-community` scope to your instance; the CLI's other dependencies still come from npm. The scope is reserved (and empty) on npm, so forgetting the flag fails with a 404 instead of installing something else.
+- `/npm/*` is public on purpose: the CLI contains no secrets. Project access still requires the share link.
+
+---
+
 ## Environment variables
 
 | Variable | Required | Default | Description |
