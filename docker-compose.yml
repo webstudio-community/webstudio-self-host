@@ -132,6 +132,7 @@ services:
       PUBLISHER_HOST: ${PUBLISHER_HOST:-}
       BUILDER_INTERNAL_URL: http://app:3000
       PROXY_PORT: "4001"
+      PUBLISH_LOG_RETENTION: ${PUBLISH_LOG_RETENTION:-5}
       # Optional: set to your Traefik file-provider directory to enable auto-generation
       # of per-domain route configs for custom domains (with TLS via Let's Encrypt).
       # Example: TRAEFIK_DYNAMIC_DIR=/etc/traefik/dynamic
