@@ -49,6 +49,7 @@ TRPC_SERVER_API_TOKEN=      # openssl rand -hex 32
 PUBLISHER_HOST=             # ex: wstdwork.votre-domaine.com
 BUILDER_IMAGE=              # ghcr.io/webstudio-community/builder:latest
 PUBLISHER_IMAGE=            # ghcr.io/webstudio-community/webstudio-publisher:latest
+PUBLISH_LOG_RETENTION=      # Nb logs conservés par domaine (défaut: 5)
 
 # OAuth (optionnel)
 GH_CLIENT_ID=

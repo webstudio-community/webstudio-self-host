@@ -206,6 +206,7 @@ services:
       - PUBLISHER_HOST=${PUBLISHER_HOST:-wstd.work}
       - BUILDER_INTERNAL_URL=http://app:3000
       - PROXY_PORT=4001
+      - PUBLISH_LOG_RETENTION=${PUBLISH_LOG_RETENTION:-5}
       # Enables auto-generation of Traefik dynamic config files for custom domains.
       # The publisher writes one YAML file per custom domain so Traefik can route
       # traffic and request a Let's Encrypt certificate automatically.
