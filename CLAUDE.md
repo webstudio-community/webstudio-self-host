@@ -50,6 +50,8 @@ PUBLISHER_HOST=             # ex: wstdwork.votre-domaine.com
 BUILDER_IMAGE=              # ghcr.io/webstudio-community/builder:latest
 PUBLISHER_IMAGE=            # ghcr.io/webstudio-community/webstudio-publisher:latest
 
+BACKUP_RETENTION=5          # Max published builds per project (0=unlimited, default=5)
+
 # OAuth (optionnel)
 GH_CLIENT_ID=
 GH_CLIENT_SECRET=
