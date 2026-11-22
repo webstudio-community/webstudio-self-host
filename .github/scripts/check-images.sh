@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
-# Vérifie les images des fichiers compose :
-#   1. tag épinglé (pas de :latest ni de tag absent), sauf images de l'org webstudio-community ;
-#   2. image présente sur le registre, avec amd64 ET arm64 (la cible est un Raspberry Pi).
-# Erreur réseau / auth : simple avertissement, pour ne pas bloquer sur une panne de registre.
+# Checks compose images: pinned tag (except webstudio-community images), present on
+# the registry for amd64 and arm64. Registry errors only warn.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
@@ -18,7 +16,7 @@ annotate() { # niveau, message
 
 images=()
 for file in "${FILES[@]}"; do
-  # Variables injectées au déploiement (Coolify...) : valeur factice, sauf les *_IMAGE (leur défaut est l'image à vérifier).
+  # Deploy-time variables get a dummy value, except *_IMAGE whose default is the image to check.
   grep -ohE '\$\{[A-Z_0-9]+' "$file" | sed 's/^\${//' | grep -v '_IMAGE$' | sort -u | sed 's/$/=x/' > "$tmp/env" || true
   while IFS= read -r image; do images+=("$image"); done < <(docker compose -f "$file" --env-file "$tmp/env" config --images)
 done
