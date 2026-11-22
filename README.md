@@ -19,7 +19,7 @@ This repo provides two compose files:
 | `migrate` | Runs Prisma migrations on startup |
 | `minio` | S3-compatible object storage for assets |
 | `nginx` | Serves published static sites |
-| `publisher` | Generates static HTML when you click Publish |
+| `publisher` | Builds sites on Publish and serves or ships them |
 
 ---
 
@@ -241,7 +241,7 @@ DEV_LOGIN_EMAIL=admin@example.com
 
 The password is the value of `AUTH_SECRET` (visible in Coolify under the service's environment variables).
 
-Also set `DEPLOYMENT_URL` in your `.env` (plain Compose — Coolify sets it automatically): the compose file always passes the variable through, and the app refuses to start if it's empty. With Coolify this is set automatically from `SERVICE_URL_APP`; with plain Compose, set it to your builder's URL (e.g. `http://localhost:3000` for local testing, see [Testing locally over plain HTTP](#testing-locally-over-plain-http)).
+Every login mode needs `DEPLOYMENT_URL`: the app refuses to start on an empty value. Coolify sets it from `SERVICE_URL_APP`; with plain Compose, set it in `.env`.
 
 ### Option B: GitHub OAuth
 
@@ -255,10 +255,7 @@ Also set `DEPLOYMENT_URL` in your `.env` (plain Compose — Coolify sets it auto
 ```env
 GH_CLIENT_ID=your-client-id
 GH_CLIENT_SECRET=your-client-secret
-DEPLOYMENT_URL=https://webstudio.your-domain.com
 ```
-
-> With Coolify: `DEPLOYMENT_URL` is automatically set from `SERVICE_URL_APP` by the compose file — no need to add it manually.
 
 ### Option C: Google OAuth
 
@@ -271,10 +268,7 @@ DEPLOYMENT_URL=https://webstudio.your-domain.com
 ```env
 GOOGLE_CLIENT_ID=your-client-id
 GOOGLE_CLIENT_SECRET=your-client-secret
-DEPLOYMENT_URL=https://webstudio.your-domain.com
 ```
-
-> With Coolify: `DEPLOYMENT_URL` is automatically set from `SERVICE_URL_APP` by the compose file — no need to add it manually.
 
 ### Testing locally over plain HTTP
 
@@ -285,8 +279,6 @@ DEPLOYMENT_ENVIRONMENT=development
 DEPLOYMENT_URL=http://localhost:3000
 ALLOW_INSECURE_COOKIES=true
 ```
-
-`DEPLOYMENT_URL` is required here too, even for dev login: the compose file always passes it through, and the app refuses to start on an empty value.
 
 Never set `DEPLOYMENT_ENVIRONMENT`/`ALLOW_INSECURE_COOKIES` like this on a real deployment — `ALLOW_INSECURE_COOKIES` is refused at startup when `DEPLOYMENT_ENVIRONMENT=production` (the default).
 
@@ -335,7 +327,7 @@ The **Publish** panel has two selectors (shown when `PUBLISHER_HOST` is set), re
 | Static / Dynamic | **This Webstudio instance** | served locally: static files, or a `docker run` container | publisher proxy / `nginx` |
 | Static | **Cloudflare Pages** | `wrangler pages deploy` (needs `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` on the publisher) | Cloudflare |
 | Static | **Remote server (SSH)** | prerenders, then `rsync` to a server you own | your server |
-| Dynamic | **Coolify (remote)** | builds the SSR image, pushes it to a registry, then triggers a deploy webhook | your (or a client's) Coolify |
+| Static / Dynamic | **Coolify (remote)** | builds an image, pushes it to a registry, then triggers a deploy webhook | your (or a client's) Coolify |
 
 Unavailable combinations are greyed out in the panel (e.g. Dynamic + Cloudflare, or a hosting option the publisher isn't configured for).
 
@@ -374,7 +366,7 @@ Then pick **Static (SSG)** + **Remote server (SSH)** in the Publish panel and pu
 
 ### Coolify (remote SSR)
 
-<!-- anchor kept as #coolify-remote-ssr; covers both SSR and SSG -->
+<!-- Linked from the builder's Publish panel: keep the #coolify-remote-ssr anchor. -->
 
 Host a **Dynamic (SSR)** *or* **Static (SSG)** site on any Coolify instance — yours, or a different one per client, potentially on another server. The publisher builds a Docker image (the SSR app, or `dist/client` wrapped in `nginx:alpine`) and pushes it to a registry; the target Coolify pulls it and redeploys when its deploy webhook is triggered.
 
@@ -479,6 +471,8 @@ Notes:
 | `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` | - | - | Enables the "Cloudflare Pages" hosting option |
 | `REGISTRY_URL` | - | - | Registry the publisher pushes images to — enables "Coolify (remote)" hosting for SSR and SSG ([details](#coolify-remote-ssr)) |
 | `REGISTRY_USER` / `REGISTRY_TOKEN` | - | - | Registry write credentials (omit for public images) |
+| `PUBLISH_LOG_RETENTION` | - | `5` | Publish logs kept per domain |
+| `BACKUP_RETENTION` | - | `5` | Published builds kept per project; older ones keep metadata only. `0` = unlimited |
 | `BUILDER_IMAGE` | - | `ghcr.io/webstudio-community/builder:latest` | Builder Docker image |
 | `PUBLISHER_IMAGE` | - | `ghcr.io/webstudio-community/webstudio-publisher:latest` | Publisher Docker image |
 

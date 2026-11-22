@@ -1,6 +1,5 @@
 services:
-  # ── MinIO (S3-compatible object storage) ────────────────────────────────────
-  # SERVICE_FQDN_MINIO_9000 → assigne un domaine public au port 9000 via Coolify UI
+  # SERVICE_FQDN_MINIO_9000: public domain for port 9000, set in the Coolify UI.
   minio:
     image: 'ghcr.io/coollabsio/minio:RELEASE.2025-10-15T17-29-55Z'
     restart: always
@@ -19,8 +18,6 @@ services:
       interval: 5s
       timeout: 20s
       retries: 10
-
-  # ── MinIO bucket init (runs once) ───────────────────────────────────────────
   minio-init:
     image: 'ghcr.io/coollabsio/minio:RELEASE.2025-10-15T17-29-55Z'
     restart: "no"
@@ -39,8 +36,6 @@ services:
         mc mb --ignore-existing local/$$S3_BUCKET
         mc anonymous set download local/$$S3_BUCKET
         echo 'Bucket ready.'
-
-  # ── PostgreSQL ──────────────────────────────────────────────────────────────
   db:
     image: postgres:15-alpine
     restart: always
@@ -59,8 +54,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
-  # ── PostgREST ───────────────────────────────────────────────────────────────
   postgrest:
     image: postgrest/postgrest:v12.2.0
     restart: always
@@ -76,8 +69,6 @@ services:
       - PGRST_DB_ANON_ROLE=anon
       - PGRST_JWT_SECRET=${SERVICE_BASE64_64_PGRST}
       - PGRST_DB_SCHEMAS=public
-
-  # ── Database setup ──────────────────────────────────────────────────────────
   db-setup:
     image: postgres:15-alpine
     restart: "no"
@@ -94,8 +85,6 @@ services:
           -c "GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon;" \
           -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon;" \
           -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon;"
-
-  # ── Schema migrations ───────────────────────────────────────────────────────
   migrate:
     image: ${BUILDER_IMAGE:-ghcr.io/webstudio-community/builder:latest}
     restart: "no"
@@ -110,8 +99,6 @@ services:
     environment:
       DATABASE_URL: postgresql://postgres:${SERVICE_PASSWORD_DB}@db:5432/webstudio
       DIRECT_URL: postgresql://postgres:${SERVICE_PASSWORD_DB}@db:5432/webstudio
-
-  # ── Webstudio builder ───────────────────────────────────────────────────────
   app:
     image: ${BUILDER_IMAGE:-ghcr.io/webstudio-community/builder:latest}
     restart: always
@@ -138,12 +125,9 @@ services:
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
       - DEPLOYMENT_ENVIRONMENT=production
-      # SERVICE_URL_APP is injected by Coolify and includes the https:// prefix.
-      # Do not use SERVICE_FQDN_APP here — it is the bare hostname without protocol
-      # and will fail the URL validation check on startup.
+      # Not SERVICE_FQDN_APP: it has no https:// and fails URL validation on startup.
       - DEPLOYMENT_URL=${SERVICE_URL_APP}
-      # Required in production — used as OAuth server credentials for the webstudio CLI
-      # (webstudio sync / webstudio build). Any non-empty, non-default values work.
+      # OAuth credentials for the webstudio CLI; any non-empty, non-default values.
       - AUTH_WS_CLIENT_ID=${AUTH_WS_CLIENT_ID:-self-hosted}
       - AUTH_WS_CLIENT_SECRET=${SERVICE_PASSWORD_AUTH}
       - PGRST_JWT_SECRET=${SERVICE_BASE64_64_PGRST}
@@ -169,9 +153,8 @@ services:
       retries: 5
     volumes:
       - uploads:/app/public/s/uploads
-    # Traefik labels for canvas wildcard subdomain routing.
-    # NOTE: Coolify does NOT interpolate ${VAR} in labels — update the domain values below
-    # before deploying. Replace "webstudio.example.com" with your actual app domain.
+    # Canvas wildcard routing. Coolify does not interpolate ${VAR} in labels:
+    # replace "webstudio.example.com" with your app domain before deploying.
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.ws-canvas.rule=HostRegexp(`^.+[.]webstudio[.]example[.]com`)"
@@ -183,16 +166,9 @@ services:
       - "traefik.http.routers.ws-canvas.service=ws-canvas-svc"
       - "traefik.http.routers.ws-canvas.middlewares=gzip"
       - "traefik.http.services.ws-canvas-svc.loadbalancer.server.port=3000"
-
-  # ── Self-hosted publisher ────────────────────────────────────────────────────
-  # Port 4000 (internal): build API — receives publish requests from the builder.
-  # Port 4001 (public via Traefik): site proxy — serves all published sites.
-  #   SSR domains → reverse-proxied to their react-router-serve subprocess
-  #   SSG domains → static files served directly from /var/publish/<domain>/
-  #
-  # Traefik labels for published sites wildcard routing.
-  # NOTE: Coolify does NOT interpolate ${VAR} in labels — update the domain values below
-  # before deploying. Replace "wstdwork.example.com" with your PUBLISHER_HOST value.
+  # 4000: build API (internal). 4001: proxy serving every published site.
+  # Coolify does not interpolate ${VAR} in labels: replace "wstdwork.example.com"
+  # with your PUBLISHER_HOST before deploying.
   publisher:
     image: ${PUBLISHER_IMAGE:-ghcr.io/webstudio-community/webstudio-publisher:latest}
     restart: always
@@ -208,23 +184,18 @@ services:
       - BUILDER_INTERNAL_URL=http://app:3000
       - PROXY_PORT=4001
       - PUBLISH_LOG_RETENTION=${PUBLISH_LOG_RETENTION:-5}
-      # Enables auto-generation of Traefik dynamic config files for custom domains.
-      # The publisher writes one YAML file per custom domain so Traefik can route
-      # traffic and request a Let's Encrypt certificate automatically.
+      # One Traefik config per custom domain, so Traefik issues its certificate.
       - TRAEFIK_DYNAMIC_DIR=/data/coolify/proxy/dynamic
-      # Optional: "Coolify (remote)" hosting — registry the publisher pushes SSR
-      # images to (the client's Coolify pulls from it). See .env.example.
+      # Optional: "Coolify (remote)" hosting, see .env.example.
       - REGISTRY_URL=${REGISTRY_URL:-}
       - REGISTRY_USER=${REGISTRY_USER:-}
       - REGISTRY_TOKEN=${REGISTRY_TOKEN:-}
     volumes:
       - published-sites:/var/publish
       - publisher-work:/var/work
-      # Required for TRAEFIK_DYNAMIC_DIR: gives the publisher write access to the
-      # Traefik file-provider directory so it can create per-domain route configs.
+      # Required by TRAEFIK_DYNAMIC_DIR.
       - /data/coolify/proxy/dynamic:/data/coolify/proxy/dynamic:rw
-      # Required for the "Dynamic (SSR)" render mode and "Coolify (remote)"
-      # hosting — the publisher runs `docker build` / `docker push`. Uncomment:
+      # Required for SSR and "Coolify (remote)" (docker build / push):
       # - /var/run/docker.sock:/var/run/docker.sock
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:4000/health || exit 1"]

@@ -1,10 +1,8 @@
 services:
-  # ── S3-compatible object storage (pgsty/silo, fork maintenu de MinIO) ───────
-  # minio/minio n'est plus publié sur Docker Hub ; silo est rétro-compatible
-  # (mêmes variables MINIO_ROOT_*, même endpoint de santé).
+  # pgsty/silo: maintained MinIO fork (minio/minio is no longer on Docker Hub), same variables.
   minio:
     image: pgsty/silo:RELEASE.2026-10-18T00-00-00Z
-    # digest multi-arch (amd64+arm64) : sha256:2636fc4155d9a7e41ff58cdb65ddd13ba9304e67184e13c25bc5cb34016269d7
+    # amd64+arm64 digest: sha256:2636fc4155d9a7e41ff58cdb65ddd13ba9304e67184e13c25bc5cb34016269d7
     restart: always
     command: server /data --console-address ":9001"
     environment:
@@ -20,10 +18,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
-  # ── MinIO bucket init (runs once) ───────────────────────────────────────────
   minio-init:
-    # même image que le serveur : embarque mc/mcli, curl et un shell
+    # Same image as the server: ships mc, curl and a shell.
     image: pgsty/silo:RELEASE.2026-10-18T00-00-00Z
     restart: "no"
     depends_on:
@@ -41,8 +37,6 @@ services:
         mc mb --ignore-existing local/$$S3_BUCKET
         mc anonymous set download local/$$S3_BUCKET
         echo 'Bucket ready.'
-
-  # ── PostgreSQL ──────────────────────────────────────────────────────────────
   db:
     image: postgres:15-alpine
     restart: always
@@ -59,8 +53,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
-  # ── PostgREST ───────────────────────────────────────────────────────────────
   postgrest:
     image: postgrest/postgrest:v12.2.0
     restart: always
@@ -74,11 +66,7 @@ services:
       PGRST_DB_ANON_ROLE: anon
       PGRST_JWT_SECRET: ${PGRST_JWT_SECRET}
       PGRST_DB_SCHEMAS: public
-
-  # ── PostgREST permissions (runs once after DB is ready) ─────────────────────
-  # Grants the "anon" role access to all existing tables so PostgREST can query
-  # them. The init SQL already sets DEFAULT PRIVILEGES for future tables; this
-  # service handles any tables that existed before the grant was applied.
+  # Grants "anon" access to tables created before the init SQL's DEFAULT PRIVILEGES.
   db-setup:
     image: postgres:15-alpine
     restart: "no"
@@ -97,8 +85,6 @@ services:
           -c "GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon;" \
           -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon;" \
           -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon;"
-
-  # ── Schema migrations ───────────────────────────────────────────────────────
   migrate:
     image: ${BUILDER_IMAGE:-ghcr.io/webstudio-community/builder:latest}
     restart: "no"
@@ -113,12 +99,7 @@ services:
     environment:
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/webstudio
       DIRECT_URL: postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/webstudio
-
-  # ── Self-hosted publisher ────────────────────────────────────────────────────
-  # Port 4000 (internal): build API — receives publish requests from the builder.
-  # Port 4001 → host 80: site proxy — serves all published sites.
-  #   SSR domains → reverse-proxied to their react-router-serve subprocess
-  #   SSG domains → static files served directly from /var/publish/<domain>/
+  # 4000: build API (internal). 4001: proxy serving every published site.
   publisher:
     image: ${PUBLISHER_IMAGE:-ghcr.io/webstudio-community/webstudio-publisher:latest}
     restart: always
@@ -133,29 +114,23 @@ services:
       BUILDER_INTERNAL_URL: http://app:3000
       PROXY_PORT: "4001"
       PUBLISH_LOG_RETENTION: ${PUBLISH_LOG_RETENTION:-5}
-      # Optional: set to your Traefik file-provider directory to enable auto-generation
-      # of per-domain route configs for custom domains (with TLS via Let's Encrypt).
-      # Example: TRAEFIK_DYNAMIC_DIR=/etc/traefik/dynamic
-      # Also add a bind mount below: - ${TRAEFIK_DYNAMIC_DIR}:${TRAEFIK_DYNAMIC_DIR}:rw
+      # Optional Traefik file-provider directory (e.g. /etc/traefik/dynamic): enables
+      # Let's Encrypt for custom domains. Also bind-mount it read-write below.
       TRAEFIK_DYNAMIC_DIR: ${TRAEFIK_DYNAMIC_DIR:-}
-      # Optional: "Coolify (remote)" hosting — registry the publisher pushes SSR
-      # images to (the client's Coolify pulls from it). See .env.example.
+      # Optional: "Coolify (remote)" hosting, see .env.example.
       REGISTRY_URL: ${REGISTRY_URL:-}
       REGISTRY_USER: ${REGISTRY_USER:-}
       REGISTRY_TOKEN: ${REGISTRY_TOKEN:-}
     volumes:
       - published-sites:/var/publish
       - publisher-work:/var/work
-      # Required for the "Dynamic (SSR)" render mode and "Coolify (remote)"
-      # hosting — the publisher runs `docker build` / `docker push`. Uncomment:
+      # Required for SSR and "Coolify (remote)" (docker build / push):
       # - /var/run/docker.sock:/var/run/docker.sock
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:4000/health || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
-
-  # ── Webstudio builder ───────────────────────────────────────────────────────
   app:
     image: ${BUILDER_IMAGE:-ghcr.io/webstudio-community/builder:latest}
     restart: always
